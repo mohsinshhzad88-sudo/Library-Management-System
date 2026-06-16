@@ -33,7 +33,7 @@ if ($check && $check->num_rows === 0) {
 // ---------------------------------------------------------------
 // CORE AI LOGIC
 // ---------------------------------------------------------------
-function get_ai_recommendations($conn, $member_id, $limit = 5) {
+function get_ai_recommendations($conn, $member_id, $memberName, $limit = 5) {
 
     // 1. Genres this member has issued before, with frequency
     $genreCounts = [];
@@ -90,20 +90,36 @@ function get_ai_recommendations($conn, $member_id, $limit = 5) {
     }
     $candidates = $conn->query($sql)->fetch_all(MYSQLI_ASSOC);
 
-    // 5. Score each candidate: genre match weight + slight popularity boost
-    foreach ($candidates as &$book) {
-        $genre = $book['genre'];
-        $score = 0;
-        if (isset($genreCounts[$genre])) {
-            $score += 3 + $genreCounts[$genre];
-        }
-        $score += 0.01 * (int)$book['total_issues'];
-        $book['score']  = $score;
-        $book['reason'] = isset($genreCounts[$genre])
-            ? "Because you've read $genre books"
-            : "You might also like this";
+foreach ($candidates as &$book) {
+
+    $genre = $book['genre'];
+    $score = 0;
+
+    // GENRE PREFERENCE SCORE
+    if (isset($genreCounts[$genre])) {
+        $score += ($genreCounts[$genre] * 4);
     }
-    unset($book);
+
+    // POPULARITY BOOST
+    $score += (int)$book['total_issues'] * 0.2;
+
+    // STOCK BONUS
+    if ($book['quantity'] > 3) {
+        $score += 0.5;
+    }
+
+    $book['score'] = $score;
+
+    // REASON TEXT (WITH MEMBER NAME)
+    if (isset($genreCounts[$genre])) {
+        $book['reason'] = "Recommended for $memberName based on your reading history";
+    } else {
+        $book['reason'] = "Recommended for $memberName as a popular book";
+    }
+}
+
+// 🔥 IMPORTANT: THIS MUST BE OUTSIDE THE LOOP
+unset($book);
 
     // 6. Rank and return top N
     usort($candidates, fn($a, $b) => $b['score'] <=> $a['score']);
@@ -118,7 +134,7 @@ $recommendations = [];
 $memberName = null;
 
 if ($member_id > 0) {
-    $recommendations = get_ai_recommendations($conn, $member_id, 5);
+    $recommendations = get_ai_recommendations($conn, $member_id, $memberName, 5);
 
     $stmt = $conn->prepare("SELECT name FROM members WHERE id = ?");
     $stmt->bind_param("i", $member_id);
