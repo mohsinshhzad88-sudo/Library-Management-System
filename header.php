@@ -15,7 +15,7 @@
     <a href="return_book.php">RETURN BOOK</a>
     <a href="add_member.php">ADD MEMBER</a>
     <a href="logs.php">LOGS</a>
-
+    <a href="ai_recommend.php">AI RECOMMEND</a>
 
 
 </nav>
